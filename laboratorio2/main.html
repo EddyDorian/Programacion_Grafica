@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL2 Figuras</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        #instructions {
+            width: 30%;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-left: 2px solid #ccc;
+            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        canvas {
+            width: 60%;
+            height: auto;
+            background-color: #eee;
+            margin: 20px;
+            border: 2px solid #444;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="glCanvas" width="600" height="400"></canvas>
+    <div id="instructions">
+        <h3>Instrucciones</h3>
+        <p>Presiona las siguientes teclas para seleccionar una figura:</p>
+        <ul>
+            <li><strong>C</strong>: Dibujar un círculo</li>
+            <li><strong>Q</strong>: Dibujar un cuadrado</li>
+            <li><strong>T</strong>: Dibujar un triángulo</li>
+            <li><strong>S</strong>: Dibujar una estrella</li>
+            <li><strong>L</strong>: Limpiar el canvas</li>
+        </ul>
+        <p>Haz clic en el canvas para dibujar la figura seleccionada.</p>
+        <div id="status" style="text-align: center; margin-top: 10px; font-weight: bold;">
+            Figura seleccionada: Círculo
+        </div>
+    </div>
+    <script type="text/javascript">
+        const vertexShaderSource = `#version 300 es
+        in vec2 a_position;
+        uniform vec2 u_translation;
+        uniform float u_radius;
+        uniform float u_aspect; // Relación de aspecto del canvas
+        void main() {
+            vec2 scaledPosition = a_position * u_radius;
+            scaledPosition.x /= u_aspect; // Ajustar la coordenada X según la relación de aspecto
+            vec2 position = scaledPosition + u_translation;
+            gl_Position = vec4(position, 0.0, 1.0);
+        }
+        `;
+
+        const fragmentShaderSource = `#version 300 es
+        precision mediump float;
+        uniform vec4 u_color; // Uniforme para el color
+        out vec4 outColor;
+        void main() {
+            outColor = u_color; // Usar el color pasado desde JavaScript
+        }
+        `;
+
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error('Error compiling shader:', gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        function createProgram(gl, vertexShader, fragmentShader) {
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                console.error('Error linking program:', gl.getProgramInfoLog(program));
+                gl.deleteProgram(program);
+                return null;
+            }
+            return program;
+        }
+
+        function generateStarVertices(numPoints, innerRadius, outerRadius) {
+            const vertices = [0, 0]; 
+            const angleStep = Math.PI / numPoints; 
+
+            for (let i = 0; i < numPoints * 2; i++) {
+                const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                const angle = i * angleStep - Math.PI / 2; 
+                vertices.push(Math.cos(angle) * radius, Math.sin(angle) * radius);
+            }
+
+            vertices.push(vertices[2], vertices[3]);
+
+            return vertices;
+        }
+
+        function resizeCanvasToDisplaySize(canvas) {
+            const displayWidth = canvas.clientWidth;
+            const displayHeight = canvas.clientHeight;
+
+            if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+                canvas.width = displayWidth;
+                canvas.height = displayHeight;
+                gl.viewport(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function main() {
+            const canvas = document.getElementById('glCanvas');
+            const gl = canvas.getContext('webgl2');
+
+            if (!gl) {
+                const errorMessage = document.createElement('p');
+                errorMessage.textContent = 'WebGL2 no está soportado en tu navegador. Por favor, usa un navegador compatible.';
+                errorMessage.style.color = 'red';
+                errorMessage.style.textAlign = 'center';
+                document.body.appendChild(errorMessage);
+                return;
+            }
+
+            const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+            const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+            const program = createProgram(gl, vertexShader, fragmentShader);
+
+            const positionAttributeLocation = gl.getAttribLocation(program, 'a_position');
+            const translationUniformLocation = gl.getUniformLocation(program, 'u_translation');
+            const radiusUniformLocation = gl.getUniformLocation(program, 'u_radius');
+            const aspectUniformLocation = gl.getUniformLocation(program, 'u_aspect');
+
+            function updateAspectRatio() {
+                const aspect = canvas.width / canvas.height;
+                gl.uniform1f(aspectUniformLocation, aspect);
+            }
+
+            // Generar puntos para las figuras
+            const numPoints = 100;
+            const circlePositions = [];
+            for (let i = 0; i < numPoints; i++) {
+                const angle = (i / numPoints) * Math.PI * 2;
+                circlePositions.push(Math.cos(angle), Math.sin(angle));
+            }
+
+            const squarePositions = [
+                -1, -1,
+                1, -1,  
+                1, 1, 
+                -1, 1  
+            ];
+
+            const trianglePositions = [
+                0, 1,
+                -1, -1,
+                1, -1
+            ];
+
+            const starPositions = generateStarVertices(5, 0.5, 1.0);
+
+            // Crear VAOs y buffers para cada figura
+            const circleVAO = gl.createVertexArray();
+            gl.bindVertexArray(circleVAO);
+            const circleBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, circleBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(circlePositions), gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(positionAttributeLocation);
+            gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+
+            const squareVAO = gl.createVertexArray();
+            gl.bindVertexArray(squareVAO);
+            const squareBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, squareBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(squarePositions), gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(positionAttributeLocation);
+            gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+
+            const triangleVAO = gl.createVertexArray();
+            gl.bindVertexArray(triangleVAO);
+            const triangleBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, triangleBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(trianglePositions), gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(positionAttributeLocation);
+            gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+
+            const starVAO = gl.createVertexArray();
+            gl.bindVertexArray(starVAO);
+            const starBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, starBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(starPositions), gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(positionAttributeLocation);
+            gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+
+            gl.bindVertexArray(null);
+
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clearColor(0, 0, 0, 1);
+            gl.useProgram(program);
+
+            const figures = [];
+            let currentShape = 'circle';
+
+            const statusElement = document.getElementById('status');
+            window.addEventListener('keydown', (event) => {
+                if (event.key === 'c') {
+                    currentShape = 'circle';
+                    statusElement.textContent = 'Figura seleccionada: Círculo';
+                } else if (event.key === 'q') {
+                    currentShape = 'square';
+                    statusElement.textContent = 'Figura seleccionada: Cuadrado';
+                } else if (event.key === 't') {
+                    currentShape = 'triangle';
+                    statusElement.textContent = 'Figura seleccionada: Triángulo';
+                } else if (event.key === 's') { // Nueva opción para estrella
+                    currentShape = 'star';
+                    statusElement.textContent = 'Figura seleccionada: Estrella';
+                } else if (event.key === 'l') { // Tecla para limpiar
+                    figures.length = 0; // Vaciar el array de figuras
+                    gl.clear(gl.COLOR_BUFFER_BIT); // Limpiar el canvas
+                    statusElement.textContent = 'Canvas limpiado. Selecciona una figura para empezar.';
+                }
+            });
+
+            canvas.addEventListener('click', (event) => {
+                const rect = canvas.getBoundingClientRect();
+
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+
+                // Convertir las coordenadas del clic a coordenadas de WebGL
+                const glX = (x / rect.width) * 2 - 1; 
+                const glY = -((y / rect.height) * 2 - 1); 
+
+                figures.push({ x: glX, y: glY, shape: currentShape, radius: 0.2 });
+
+                drawScene();
+            });
+
+            function drawScene() {
+                gl.clear(gl.COLOR_BUFFER_BIT);
+
+                // Actualizar la relación de aspecto
+                updateAspectRatio();
+
+                figures.forEach((figure) => {
+                    if (figure.shape === 'circle') {
+                        gl.bindVertexArray(circleVAO);
+                        gl.uniform4f(gl.getUniformLocation(program, 'u_color'), 1.0, 0.0, 0.0, 1.0); // Rojo
+                    } else if (figure.shape === 'square') {
+                        gl.bindVertexArray(squareVAO);
+                        gl.uniform4f(gl.getUniformLocation(program, 'u_color'), 0.0, 1.0, 0.0, 1.0); // Verde
+                    } else if (figure.shape === 'triangle') {
+                        gl.bindVertexArray(triangleVAO);
+                        gl.uniform4f(gl.getUniformLocation(program, 'u_color'), 0.0, 0.0, 1.0, 1.0); // Azul
+                    } else if (figure.shape === 'star') {
+                        gl.bindVertexArray(starVAO);
+                        gl.uniform4f(gl.getUniformLocation(program, 'u_color'), 1.0, 1.0, 0.0, 1.0); // Amarillo
+                    }
+
+                    // Configurar la posición y el radio para todas las figuras
+                    gl.uniform2f(translationUniformLocation, figure.x, figure.y);
+                    gl.uniform1f(radiusUniformLocation, figure.radius);
+
+                    // Determinar el tipo de primitiva y el número de vértices
+                    const primitiveType = figure.shape === 'circle' ? gl.TRIANGLE_FAN :
+                                          figure.shape === 'square' ? gl.TRIANGLE_FAN :
+                                          figure.shape === 'triangle' ? gl.TRIANGLES :
+                                          gl.TRIANGLE_FAN; // Estrella
+                    const count = figure.shape === 'circle' ? circlePositions.length / 2 :
+                                  figure.shape === 'square' ? squarePositions.length / 2 :
+                                  figure.shape === 'triangle' ? trianglePositions.length / 2 :
+                                  starPositions.length / 2; // Estrella
+
+                    gl.drawArrays(primitiveType, 0, count);
+                });
+            }
+        }
+
+        main();
+    </script>
+</body>
+</html>
