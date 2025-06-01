@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escenario en 2D</title>
+    <style>
+        body { 
+            margin: 0;
+            overflow: hidden; /* Hide scrollbars */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+         }
+    </style>
+</head>
+<body>
+    <canvas id="webgl-canvas" style="border: none;" width="500" height="500"></canvas>
+
+    <script>
+        // Inicialización de WebGL
+        const canvas = document.getElementById("webgl-canvas");
+        const gl = canvas.getContext("webgl");
+
+        if (!gl) {
+            alert("WebGL no está soportado en tu navegador.");
+        }
+
+        /***********************************************************************************/
+        /*                                 ELEFANTE GRANDE                                 */
+        /***********************************************************************************/
+        // Vértices - Trompa Superior
+        const trompaSuperiorVertices = new Float32Array([
+            0.9122340679168701, -0.2748227119445801,    
+            0.8501772880554199, -0.29432618618011475,   
+            0.883865237236023, -0.3191488981246948,                   
+        ]);
+
+        // Índices - Trompa Superior
+        const trompaSuperiorIndices = new Uint16Array([
+            0, 1, 2,
+        ]);
+
+        // Vértices - Trompa Medio
+        const trompaMedioVertices = new Float32Array([
+            
+            0.8333333730697632, -0.2916666269302368,
+            0.8120567798614502, -0.34663116931915283,
+            0.866134762763977, -0.3439716100692749,
+            0.8767729997634888, -0.32535457611083984,
+            
+        ]);
+
+        // Índices - Trompa Medio
+        const trompaMedioIndices = new Uint16Array([
+            0, 1, 2,
+            0, 2, 3,
+        ]);
+
+        // Vértices - Trompa Base
+        const trompaBaseVertices = new Float32Array([ 
+            0.7358156442642212, -0.08865249156951904,  
+            0.73758864402771, -0.25,                     
+            0.8023049831390381, -0.347517728805542,      
+            0.8856383562088013, -0.10460996627807617,    
+            0.8404254913330078, -0.12677299976348877,              
+        ]);
+
+        // Índices - Trompa Base
+        const trompaBaseIndices = new Uint16Array([
+            0, 1, 4,
+            1, 2, 3,
+            1, 3, 4,
+        ]);
+
+        // Vértices - Colmillo
+        const colmilloVertices = new Float32Array([ 
+            0.9991134405136108, -0.024822711944580078,    
+            0.734929084777832, -0.07890069484710693,    
+            0.847517728805542, -0.11613476276397705,         
+        ]);
+
+        // Índices - Colmillo
+        const colmilloIndices = new Uint16Array([
+            0, 1, 2,
+        ]);
+
+        // Vértices - Cabeza
+        const cabezaVertices = new Float32Array([       
+            0.5265957117080688, 0.49822694063186646,    
+            0.4530141353607178, 0.010638296604156494,   
+            0.7109929323196411, -0.07180845737457275,   
+            0.8891843557357788, -0.03280138969421387,   
+            0.835106372833252, 0.30053192377090454,   
+        ]);
+
+        // Índices - Cabeza
+        const cabezaIndices = new Uint16Array([
+            0, 1, 2,
+            0, 2, 3,
+            0, 3, 4,
+        ]);
+
+        // Vértices - Oreja
+        const orejaVertices = new Float32Array([
+            0.15070927143096924, 0.4831560254096985,       
+            0.09485816955566406, 0.1906028389930725,       
+            0.39095747470855713, -0.17907798290252686,     
+            0.5354609489440918, -0.026595711708068848,    
+            0.43882977962493896, 0.004432618618011475,     
+            0.5115247964859009, 0.5,                              
+            0.3297872543334961, 0.4627659320831299,        
+        ]);
+
+        // Índices - Oreja
+        const orejaIndices = new Uint16Array([
+            0, 1, 5,
+            1, 4, 5,
+            1, 2, 4,
+            2, 3, 4,
+        ]);
+
+        // Vértices - Pata Delantera
+        const pataDelanteraVertices = new Float32Array([ 
+            0.173758864402771, 0.0691489577293396,   
+            0.00709223747253418, -0.1914893388748169,   
+            0.19769501686096191, -0.49911344051361084,  
+            0.41843974590301514, -0.49911344051361084, 
+            0.451241135597229, -0.13741135597229004,   
+            0.38741135597229004, -0.19946813583374023,     
+        ]);
+
+        // Índices - Pata Delantera
+        const pataDelanteraIndices = new Uint16Array([
+            0, 1, 2,
+            0, 2, 5,
+            2, 3, 5,
+            3, 4, 5,
+        ]);
+
+        // Vértices - Pata Trasera
+        const pataTraseraVertices = new Float32Array([ 
+            0.09663116931915283, 0.26861703395843506,   
+            -0.25, -0.020390033721923828,              
+            -0.11968082189559937, -0.49911344051361084, 
+            0.076241135597229, -0.49911344051361084,   
+            0.1285461187362671, -0.417553186416626,     
+            -0.00886523723602295, -0.1914893388748169,  
+            0.16312050819396973, 0.07801419496536255,   
+            0.0797872543334961, 0.18971633911132812,    
+        ]);
+
+        // Índices - Pata Trasera
+        const pataTraseraIndices = new Uint16Array([
+            1, 2, 3,
+            0, 1, 5,
+            1, 6, 7,
+            1, 5, 6,
+            1, 2, 5,
+            2, 3, 5,
+            3, 4, 5,
+        ]);
+
+        // Vértices - Cola
+        const colaVertices = new Float32Array([ 
+            -0.26241135597229004, -0.028368830680847168, 
+            -0.2996453642845154, -0.06826245784759521,   
+            -0.2996453642845154, -0.201241135597229,     
+            -0.27570921182632446, -0.201241135597229,    
+            -0.256205677986145, -0.07535457611083984,           
+        ]);
+
+        // Índices - Cola
+        const colaIndices = new Uint16Array([
+            0, 1, 4,
+            1, 2, 3,
+            1, 3, 4,
+        ]);
+
+        /***********************************************************************************/
+        /*                                 ELEFANTE PEQUEÑO                                */
+        /***********************************************************************************/        
+        // Vértices - Trompa Superior
+        const trompaSuperiorPequeñoVertices = new Float32Array([
+            -0.3226950168609619, -0.17198586463928223,   
+            -0.3484042286872864, -0.17553186416625977,  
+            -0.341312050819397, -0.20212769508361816,   
+            -0.3120567202568054, -0.18971633911132812,  
+        ]);
+
+        // Índices - Trompa Superior
+        const trompaSuperiorPequeñoIndices = new Uint16Array([
+            0, 1, 2,
+            0, 2, 3,
+        ]);
+
+        // Vértices - Trompa Medio
+        const trompaMedioPequeñoVertices = new Float32Array([
+            -0.3617021441459656, -0.17996454238891602,  
+            -0.39007091522216797, -0.19769501686096191, 
+            -0.3581560254096985, -0.22960996627807617,  
+            -0.3466312289237976, -0.20567381381988525,  
+        ]);
+
+        // Índices - Trompa Medio
+        const trompaMedioPequeñoIndices = new Uint16Array([
+            0, 1, 2,
+            0, 2, 3,
+        ]);
+
+        // Vértices - Trompa Base
+        const trompaBasePequeñoVertices = new Float32Array([
+            -0.5079787373542786, -0.28634750843048096,  
+            -0.3608155846595764, -0.23315608501434326,  
+            -0.3971630930900574, -0.19946813583374023,  
+            -0.4645389914512634, -0.19946813583374023,   
+        ]);
+
+        // Índices - Trompa Base
+        const trompaBasePequeñoIndices = new Uint16Array([
+            0, 1, 2,
+            0, 2, 3,
+        ]);
+
+        // Vértices - Cabeza
+        const cabezaPequeñoVertices = new Float32Array([
+            -0.6728723049163818, -0.06560277938842773,  
+            -0.6365247964859009, -0.2677304744720459,    
+            -0.5115247964859009, -0.283687949180603,     
+            -0.4689716100692749, -0.19680845737457275,   
+            -0.5514184236526489, -0.11081564426422119,   
+        ]);
+
+        // Índices - Cabeza
+        const cabezaPequeñoIndices = new Uint16Array([
+            0, 1, 2,
+            0, 2, 3,
+            0, 3, 4,
+        ]);
+
+        // Vértices - Oreja
+        const orejaPequeñoVertices = new Float32Array([
+            -0.679964542388916, -0.06826245784759521, 
+            -0.7615247964859009, -0.1117020845413208,   
+            -0.8377659320831299, -0.13031911849975586,  
+            -0.8014184236526489, -0.25,                  
+            -0.701241135597229, -0.38031911849975586,    
+            -0.6028368473052979, -0.28191494941711426,   
+            -0.6409574747085571, -0.27216315269470215,      
+        ]);
+
+        // Índices - Oreja
+        const orejaPequeñoIndices = new Uint16Array([
+            1, 2, 3,
+            1, 6, 0,
+            1, 3, 6,
+            3, 4, 6,
+            4, 5, 6,
+        ]);
+
+        // Vértices - Pata Delantera
+        const pataDelanteraPequeñoVertices = new Float32Array([ 
+            -0.807624101638794, -0.25265955924987793,   
+            -0.8803191184997559, -0.3679077625274658,   
+            -0.7801418304443359, -0.4964538812637329,   
+            -0.6914893388748169, -0.4964538812637329,   
+            -0.664893627166748, -0.353723406791687,     
+            -0.701241135597229, -0.3882979154586792,    
+        ]);
+
+        // Índices - Pata Delantera
+        const pataDelanteraPequeñoIndices = new Uint16Array([
+            0, 1, 2,
+            0, 2, 5,
+            2, 3, 5,
+            3, 4, 5,
+        ]);
+
+        // Vértices - Pata Trasera
+        const pataTraseraPequeñoVertices = new Float32Array([
+            -0.8297872543334961, -0.17907798290252686,    
+            -0.9751772880554199, -0.28280138969421387, 
+            -0.932624101638794, -0.4964538812637329,    
+            -0.853723406791687, -0.4964538812637329,    
+            -0.8235815763473511, -0.45567381381988525,  
+            -0.8882978558540344, -0.3679077625274658,   
+            -0.8102836608886719, -0.24468088150024414,
+        ]);
+
+        // Índices - Pata Trasera
+        const pataTraseraPequeñoIndices = new Uint16Array([
+            0, 1, 5,
+            0, 5, 6,
+            1, 2, 5, 
+            2, 3, 5,
+            3, 4, 5,
+        ]);
+        
+        // Vértices - Cola
+        const colaPequeñoVertices = new Float32Array([ 
+            -0.9796099066734314, -0.28634750843048096, 
+            -0.9973404407501221, -0.3014184236526489,  
+            -0.9893617033958435, -0.34929072856903076, 
+            -0.9858155846595764, -0.3439716100692749,  
+            -0.9751772880554199, -0.298758864402771,      
+        ]);
+
+        // Índices - Cola
+        const colaPequeñoIndices = new Uint16Array([
+            0, 1, 4,
+            1, 2, 3,
+            1, 3, 4,
+        ]);
+
+        const vertexShaderSource = `
+        attribute vec2 a_position;
+        void main(void) {
+            gl_Position = vec4(a_position, 0.0, 1.0);
+            gl_PointSize = 2.0;
+        }
+        `;
+
+        const fragmentShaderSource = `
+            precision mediump float;
+            uniform vec4 u_color;
+            void main(void) {
+                gl_FragColor = u_color;
+            }
+        `;
+
+        // Compilar shader
+        function compileShader(source, type) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error("Error al compilar el shader: ", gl.getShaderInfoLog(shader));
+            }
+            return shader;
+        }
+
+        const vertexShader = compileShader(vertexShaderSource, gl.VERTEX_SHADER);
+        const fragmentShader = compileShader(fragmentShaderSource, gl.FRAGMENT_SHADER);
+
+        // Crear programa
+        const shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            console.error("Error al enlazar el programa de shaders: ", gl.getProgramInfoLog(shaderProgram));
+        }
+        gl.useProgram(shaderProgram);
+
+
+        function drawShape(vertices, indices, color) {
+            // Crear buffer para los vértices
+            const vertexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+            
+            // Crear buffer para los índices
+            const indexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+            
+            // Obtener la ubicación del atributo 'a_position' en el shader
+            const positionLocation = gl.getAttribLocation(shaderProgram, "a_position");
+            gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(positionLocation);
+            
+            // Obtener la ubicación del uniforme 'u_color' en el shader
+            const colorLocation = gl.getUniformLocation(shaderProgram, "u_color");
+            gl.uniform4fv(colorLocation, color);
+            
+            // Dibujar la figura utilizando los índices
+            gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+        }
+
+        function drawStars() {
+            // Generar posiciones aleatorias para las estrellas
+            const numStars = 200;
+            const starPositions = new Float32Array(numStars * 2);
+            for(let i = 0; i < numStars * 2; i += 2) {
+                starPositions[i] = Math.random() * 2 - 1;      // X
+                starPositions[i + 1] = Math.random() * 2 - 1;  // Y
+            }
+            
+            // Crear buffer para las estrellas
+            const starBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, starBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, starPositions, gl.STATIC_DRAW);
+            
+            // Configurar el atributo para las estrellas
+            const positionLocation = gl.getAttribLocation(shaderProgram, "a_position");
+            gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(positionLocation);
+            
+            // Establecer color blanco para las estrellas
+            const colorLocation = gl.getUniformLocation(shaderProgram, "u_color");
+            gl.uniform4fv(colorLocation, [1.0, 1.0, 1.0, 1.0]);
+            
+            // Dibujar las estrellas como puntos
+            gl.drawArrays(gl.POINTS, 0, numStars);
+        }
+
+        // Limpiar el lienzo
+        gl.clearColor(0.0, 0.0, 0.2, 1.0); // Un azul oscuro suave
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // Dibujar las estrellas 
+        drawStars();
+
+        /***********************************************************************************/
+        /*                                 ELEFANTE GRANDE                                 */
+        /***********************************************************************************/    
+        // Dibujar la trompa Superior (gris plomo muy oscuro)
+        drawShape(trompaSuperiorVertices, trompaSuperiorIndices, new Float32Array([80/255, 80/255, 80/255, 1.0])); 
+
+        // Dibujar la trompa Medio (gris plomo muy oscuro)
+        drawShape(trompaMedioVertices, trompaMedioIndices, new Float32Array([90/255, 90/255, 90/255, 1.0]));
+        
+        // Dibujar la trompa base (gris plomo oscuro)
+        drawShape(trompaBaseVertices, trompaBaseIndices, new Float32Array([110/255, 110/255, 110/255, 1.0])); 
+
+        // Dibujar colmillo (marfil)
+        drawShape(colmilloVertices, colmilloIndices, new Float32Array([255/255, 255/255, 240/255, 1.0])); 
+        
+        // Dibujar cabeza (gris plomo)
+        drawShape(cabezaVertices, cabezaIndices, new Float32Array([128/255, 128/255, 128/255, 1.0])); 
+
+        // Dibujar orejas (gris plomo con toque amarillento)
+        drawShape(orejaVertices, orejaIndices, new Float32Array([140/255, 135/255, 128/255, 1.0])); 
+
+        // Dibujar pata delantera (gris plomo)
+        drawShape(pataDelanteraVertices, pataDelanteraIndices, new Float32Array([128/255, 128/255, 128/255, 1.0])); 
+
+        // Dibujar pata trasera (gris plomo)
+        drawShape(pataTraseraVertices, pataTraseraIndices, new Float32Array([128/255, 128/255, 128/255, 1.0])); 
+
+        // Dibujar la cola (gris plomo oscuro)
+        drawShape(colaVertices, colaIndices, new Float32Array([100/255, 100/255, 100/255, 1.0])); 
+        
+        /***********************************************************************************/
+        /*                                 ELEFANTE PEQUEÑO                                */
+        /***********************************************************************************/        
+        // Dibujar la trompa superior (gris plomo oscuro)
+        drawShape(trompaSuperiorPequeñoVertices, trompaSuperiorPequeñoIndices, new Float32Array([110/255, 110/255, 110/255, 1.0])); 
+
+        // Dibujar la trompa Medio (gris plomo oscuro)
+        drawShape(trompaMedioPequeñoVertices, trompaMedioPequeñoIndices, new Float32Array([120/255, 120/255, 120/255, 1.0])); 
+
+        // Dibujar la trompa base (gris plomo)
+        drawShape(trompaBasePequeñoVertices, trompaBasePequeñoIndices, new Float32Array([130/255, 130/255, 130/255, 1.0])); 
+        
+        // Dibujar la cabeza (gris plomo con toque amarillento)
+        drawShape(cabezaPequeñoVertices, cabezaPequeñoIndices, new Float32Array([140/255, 135/255, 128/255, 1.0])); 
+
+        // Dibujar la oreja (gris plomo)
+        drawShape(orejaPequeñoVertices, orejaPequeñoIndices, new Float32Array([128/255, 128/255, 128/255, 1.0])); 
+
+        // Dibujar la pata delantera (gris plomo con toque amarillento)
+        drawShape(pataDelanteraPequeñoVertices, pataDelanteraPequeñoIndices, new Float32Array([140/255, 135/255, 128/255, 1.0])); 
+
+        // Dibujar la pata trasera (gris plomo con toque amarillento)
+        drawShape(pataTraseraPequeñoVertices, pataTraseraPequeñoIndices, new Float32Array([140/255, 135/255, 128/255, 1.0])); 
+
+        // Dibujar cola (gris plomo)
+        drawShape(colaPequeñoVertices, colaPequeñoIndices, new Float32Array([120/255, 120/255, 120/255, 1.0])); 
+    </script>
+</body>
+</html>
