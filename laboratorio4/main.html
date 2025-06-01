@@ -1,0 +1,567 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Sprites en WebGL 2.0</title>
+  <meta http-equiv="content-type" content="text/html;charset=utf-8">
+
+  <style>
+    #content {
+        display: flex;
+        gap: 20px;
+        padding: 20px;
+    }
+
+    #canvas-holder {
+        flex: 1;
+    }
+
+    #instructions {
+        width: 250px;
+        background-color: #f5f5f5;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .controls {
+        margin-top: 10px;
+    }
+
+    .controls h4 {
+        margin: 10px 0 5px 0;
+        color: #333;
+    }
+
+    .controls ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .controls li {
+        margin: 5px 0;
+        font-size: 14px;
+        color: #555;
+    }
+
+    #instructions h3 {
+        margin-top: 0;
+        color: #222;
+    }
+  </style>
+</head>
+   <body>
+
+      <div id="content">
+        <div id="instructions">
+          <h3>Controles</h3>
+          <div class="controls">
+              <h4>Ciclista:</h4>
+              <ul>
+                  <li>↑ (Flecha arriba): Mover hacia arriba</li>
+                  <li>↓ (Flecha abajo): Mover hacia abajo</li>
+                  <li>→ (Flecha derecha): Mover hacia la derecha</li>
+                  <li>← (Flecha izquierda): Mover hacia la izquierda</li>
+              </ul>
+              <h4>Lugia:</h4>
+              <ul>
+                  <li>W: Mover hacia arriba</li>
+                  <li>S: Mover hacia abajo</li>
+                  <li>D: Mover hacia la derecha</li>
+                  <li>A: Mover hacia la izquierda</li>
+              </ul>
+          </div>
+        </div>
+
+      <div id="canvas-holder">
+        <canvas id="webglcanvas" style="border: none;" width="792" height="588"></canvas>
+        <img src="16-bit-lzvbg132xgyksiif.jpg" id="fondo" hidden />
+        <img src="nubes_2-removebg-preview.png" id="nube_1" hidden />
+        <img src="sprite_bike_pokemon_black_white-removebg-preview.png" id="ciclista" hidden />
+        <img src="Photo_Storage-removebg-preview.png" id="lugia" hidden />
+      </div>
+      
+      </div>
+      <!--
+        /***************************************************************************/
+        /* Paso 1: Se definen los códigos shaders.                                 */
+        /***************************************************************************/
+      -->
+      <script id="vs" type="vertex">
+        #version 300 es
+        precision mediump float;
+        uniform mat4 uMatrizProyeccion;
+        uniform mat4 uMatrizVista;
+        uniform mat4 uMatrizModelo;
+        uniform mat4 uMatrizTextura;
+        layout(location = 0) in vec2 aVertices;
+        layout(location = 1) in vec2 aCoordenadasDeTextura;
+        out vec2 vCoordenadasDeTextura;
+        void main() {
+            vCoordenadasDeTextura = (uMatrizTextura * vec4(aCoordenadasDeTextura, 0.0, 1.0)).xy;
+            gl_Position = uMatrizProyeccion * uMatrizVista * uMatrizModelo * vec4(aVertices, 0.0, 1.0);
+        }
+      </script>
+
+      <script id="fs" type="fragment">
+        #version 300 es
+        precision mediump float;
+        uniform sampler2D uUnidadDeTextura;
+        in vec2 vCoordenadasDeTextura;
+        out vec4 color;
+        void main() {
+            color = texture(uUnidadDeTextura, vCoordenadasDeTextura); 
+        }
+      </script>
+	
+      <script>
+        "use strict";
+
+        /* Variables globales */
+        var canvas, gl;        
+        var programaID;
+        var textura1;
+        var textura2;
+        var texturaNubes;
+        var texturaLugia;
+        var codigo1;
+        var codigo2;
+        var codigoNubes;
+        var codigoLugia;
+
+        /* Variables Uniformes */
+        var uMatrizProyeccion;
+        var uMatrizVista;
+        var uMatrizModelo;
+        var uUnidadDeTextura;
+        var uMatrizTextura;
+
+        /* Matrices */
+        var MatrizProyeccion = new Array(16);
+        var MatrizVista = new Array(16);
+        var MatrizModelo = new Array(16);
+        var MatrizTextura = new Array(16);
+
+        /**
+         *  Coordenadas de Textura
+         *
+         *    1------------
+         *     |          |
+         *     |          |
+         *  4  |          |
+         *     |          |
+         *     ------------
+         *   0,0          1
+         *          4
+         *
+         */
+
+        /* Para la traslación de la textura */
+        var despX_Textura = 0;
+        var despY_Textura = 1/4;
+        var incX = 0;
+        var incY = 0;
+        var despX = -1.5;
+        var despY = 0.5;
+        var despX_Textura_Fondo = 0; // Desplazamiento en el eje X de la textura del fondo
+        var despY_Textura_Fondo = 0; // Desplazamiento en el eje Y de la textura del fondo
+        var velocidad_Fondo = 0.002; // Reducir la velocidad del desplazamiento
+        var velocidadX = 0; // Velocidad constante en el eje X
+        var velocidadY = 0; // Velocidad constante en el eje Y
+        var despX_Textura_Nubes = 0; // Desplazamiento en el eje X de la textura de las nubes
+        var velocidad_Nubes = 0.003; // Velocidad del desplazamiento de las nubes
+        var despX_Textura_Lugia = 0; // Desplazamiento en el eje X de la textura de Lugia
+        var despY_Textura_Lugia = 1/4; // Desplazamiento en el eje Y de la textura de Lugia
+        var despX_Lugia = 1; // Posición inicial en X de Lugia (más a la izquierda)
+        var despY_Lugia = 3; // Posición inicial en Y de Lugia (más arriba)
+
+        /***************************************************************************/
+        /* Paso 2: Se crean, compilan y enlazan los programas Shader               */
+        /***************************************************************************/
+        function compilaEnlazaLosShaders() {
+
+          /* Se compila el shader de vertice */
+          var shaderDeVertice = gl.createShader(gl.VERTEX_SHADER);
+          gl.shaderSource(shaderDeVertice, document.getElementById("vs").text.trim());
+          gl.compileShader(shaderDeVertice);
+          if (!gl.getShaderParameter(shaderDeVertice, gl.COMPILE_STATUS)) {
+             console.error(gl.getShaderInfoLog(shaderDeVertice));
+          }
+
+          /* Se compila el shader de fragmento */
+          var shaderDeFragmento = gl.createShader(gl.FRAGMENT_SHADER);
+          gl.shaderSource(shaderDeFragmento, document.getElementById("fs").text.trim());
+          gl.compileShader(shaderDeFragmento);
+          if (!gl.getShaderParameter(shaderDeFragmento, gl.COMPILE_STATUS)) {
+             console.error(gl.getShaderInfoLog(shaderDeFragmento));
+          }
+
+          /* Se enlaza ambos shader */
+          programaID = gl.createProgram();
+          gl.attachShader(programaID, shaderDeVertice); 
+          gl.attachShader(programaID, shaderDeFragmento);
+          gl.linkProgram(programaID);
+          if (!gl.getProgramParameter(programaID, gl.LINK_STATUS)) {
+             console.error(gl.getProgramInfoLog(programaID));
+          }
+
+          /* Se instala el programa de shaders para utilizarlo */
+          gl.useProgram(programaID);
+        }
+
+        /***************************************************************************/
+        /* Transformaciones mediante matrices                                      */
+        /***************************************************************************/
+
+        /* Convierte de grados a radianes */
+        function toRadians(grados) {
+          return grados * Math.PI / 180;
+        };
+
+        /* Matriz Identidad */
+        function identidad(r) {
+          r[0] = 1; r[4] = 0; r[ 8] = 0; r[12] = 0;
+          r[1] = 0; r[5] = 1; r[ 9] = 0; r[13] = 0;
+          r[2] = 0; r[6] = 0; r[10] = 1; r[14] = 0;
+          r[3] = 0; r[7] = 0; r[11] = 0; r[15] = 1;
+        }
+
+        /* Traslación - glTranslatef */
+        function traslacion(matriz, tx, ty, tz) {
+          var r = new Array(16);
+          r[0] = 1; r[4] = 0; r[ 8] = 0; r[12] = tx;
+          r[1] = 0; r[5] = 1; r[ 9] = 0; r[13] = ty;
+          r[2] = 0; r[6] = 0; r[10] = 1; r[14] = tz;
+          r[3] = 0; r[7] = 0; r[11] = 0; r[15] =  1;
+          multiplica(matriz, matriz, r);
+        }
+
+        /* Escalación - glScalef */
+        function escalacion(matriz, sx, sy, sz) { 
+          var r = new Array(16);
+          r[0] = sx; r[4] =  0; r[ 8] =  0; r[12] =  0;
+          r[1] =  0; r[5] = sy; r[ 9] =  0; r[13] =  0;
+          r[2] =  0; r[6] =  0; r[10] = sz; r[14] =  0;
+          r[3] =  0; r[7] =  0; r[11] =  0; r[15] =  1;
+          multiplica(matriz, matriz, r);
+        }
+
+        /* Rotación sobre X - glRotatef */
+        function rotacionX(matriz, theta){
+          let r = new Array(16);
+          var c = Math.cos(toRadians(theta));
+          var s = Math.sin(toRadians(theta));
+          r[0] =  1; r[4] =  0; r[ 8] =  0; r[12] = 0;
+          r[1] =  0; r[5] =  c; r[ 9] = -s; r[13] = 0;
+          r[2] =  0; r[6] =  s; r[10] =  c; r[14] = 0;
+          r[3] =  0; r[7] =  0; r[11] =  0; r[15] = 1;
+          multiplica(matriz, matriz, r); 
+        }
+
+        /* Rotación sobre Y - glRotatef */
+        function rotacionY(matriz, theta){
+          let r = new Array(16);
+          var c = Math.cos(toRadians(theta));
+          var s = Math.sin(toRadians(theta));
+          r[0] =  c; r[4] =  0; r[ 8] =  s; r[12] = 0;
+          r[1] =  0; r[5] =  1; r[ 9] =  0; r[13] = 0;
+          r[2] = -s; r[6] =  0; r[10] =  c; r[14] = 0;
+          r[3] =  0; r[7] =  0; r[11] =  0; r[15] = 1;
+          multiplica(matriz, matriz, r);
+        }
+	
+        /* Rotación sobre Z - glRotatef */
+        function rotacionZ(matriz, theta){
+          let r = new Array(16);
+          var c = Math.cos(toRadians(theta));
+          var s = Math.sin(toRadians(theta));
+          r[0] =  c; r[4] = -s; r[ 8] =  0; r[12] = 0;
+          r[1] =  s; r[5] =  c; r[ 9] =  0; r[13] = 0;
+          r[2] =  0; r[6] =  0; r[10] =  1; r[14] = 0;
+          r[3] =  0; r[7] =  0; r[11] =  0; r[15] = 1;
+          multiplica(matriz, matriz, r);
+        }
+
+        /* Proyección Paralela - glOrtho */
+        function ortho(r, izq, der, abj, arr, cerca, lejos) {
+          r[0] = 2/(der - izq); r[4] =             0; r[ 8] =                  0; r[12] =         -(der + izq)/(der - izq);
+          r[1] =             0; r[5] = 2/(arr - abj); r[ 9] =                  0; r[13] =         -(arr + abj)/(arr - abj);
+          r[2] =             0; r[6] =             0; r[10] = -2/(lejos - cerca); r[14] = -(lejos + cerca)/(lejos - cerca);
+          r[3] =             0; r[7] =             0; r[11] =                  0; r[15] =                                1;
+        }
+
+        /* Proyección Perspectiva - glFrustum */
+        function frustum(r, izq, der, abj, arr, cerca, lejos) {
+          r[0] = 2*cerca/(der-izq); r[4] =                 0; r[ 8] =          (der+izq)/(der-izq); r[12] =                            0;
+          r[1] =                 0; r[5] = 2*cerca/(arr-abj); r[ 9] =          (arr+abj)/(arr-abj); r[13] =                            0;
+          r[2] =                 0; r[6] =                 0; r[10] = -(lejos+cerca)/(lejos-cerca); r[14] = -2*lejos*cerca/(lejos-cerca);
+          r[3] =                 0; r[7] =                 0; r[11] =                           -1; r[15] =                            0;
+        }
+
+        /* Proyección Perspectiva - gluPerspective */
+        function perspective(r, fovy, aspecto, cerca, lejos) {
+          var ang = fovy * 0.5;
+          var f = (Math.abs(Math.sin(toRadians(ang))) < 1e-8 ? 0 : 1) / Math.tan(toRadians(ang));
+          r[0] = f/aspecto; r[4] = 0; r[ 8] =                                  0; r[12] =                                       0;
+          r[1] =         0; r[5] = f; r[ 9] =                                  0; r[13] =                                       0;
+          r[2] =         0; r[6] = 0; r[10] = -(lejos + cerca) / (lejos - cerca); r[14] =  -2.0 * lejos * cerca / (lejos - cerca);
+          r[3] =         0; r[7] = 0; r[11] =                              - 1.0; r[15] =                                       0;
+        }
+
+        /* Multiplicación de matrices de 4 x 4 */
+        function multiplica(c, a, b) {
+          let r = new Array(16);
+          let i, j, k;
+          for (i = 0; i < 4; i++){
+            for (j = 0; j < 4; j++){
+              let s = 0;
+              for (k = 0; k < 4; k++)
+                s = s + a[i + k * 4] * b[k + j * 4];
+                r[i + j * 4] = s;
+              }
+            }
+          for (i = 0; i < 16; i++)
+            c[i] = r[i];
+        }
+
+        class Rectangulo {
+          constructor(gl,x1,y1,x2,y2,u1,v1,u2,v2) {
+            var vertices = new Float32Array(8);
+            vertices[0] = x1; vertices[1] = y1; // 0
+            vertices[2] = x2; vertices[3] = y1; // 1
+            vertices[4] = x2; vertices[5] = y2; // 2
+            vertices[6] = x1; vertices[7] = y2; // 3
+
+            var coord_textura = new Float32Array(8);
+            coord_textura[0] = u1; coord_textura[1] = v1; // 0
+            coord_textura[2] = u2; coord_textura[3] = v1; // 1
+            coord_textura[4] = u2; coord_textura[5] = v2; // 2
+            coord_textura[6] = u1; coord_textura[7] = v2; // 3
+
+            this.rectanguloVAO = gl.createVertexArray();
+            gl.bindVertexArray(this.rectanguloVAO);
+
+            var codigoVertices = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, codigoVertices);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(0);
+            gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+            var codigoCoordenadasDeTextura = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, codigoCoordenadasDeTextura);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(coord_textura), gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(1);
+            gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
+
+            gl.bindVertexArray(null);
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+          }
+
+          muestra(gl) {
+            gl.bindVertexArray(this.rectanguloVAO);
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+            gl.bindVertexArray(null);
+          }          
+        }
+
+        function leeLaTextura(ID_del_archivo, codigoDeTextura) {
+          gl.bindTexture(gl.TEXTURE_2D, codigoDeTextura);
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+          let imagen = document.getElementById(ID_del_archivo);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imagen);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        }
+
+        function keyDown(event) {
+            switch (event.keyCode) {
+                case 38: // Flecha arriba
+                    despY += 0.1; // Mover hacia arriba
+                    despX_Textura = despX_Textura + 1 / 4; // Cambiar el cuadro de la textura
+                    despY_Textura = 0; // Seleccionar la fila correspondiente en el spritesheet
+                    break;
+                case 40: // Flecha abajo
+                    despY -= 0.1; // Mover hacia abajo
+                    despX_Textura = despX_Textura + 1 / 4;
+                    despY_Textura = 3 / 4; 
+                    break;
+                case 39: // Flecha derecha
+                    despX += 0.1; // Mover hacia la derecha
+                    despX_Textura = despX_Textura + 1 / 4; 
+                    despY_Textura = 1 / 4; 
+                    break;
+                case 37: // Flecha izquierda
+                    despX -= 0.1; // Mover hacia la izquierda
+                    despX_Textura = despX_Textura - 1 / 4; 
+                    despY_Textura = 2 / 4; 
+                    break;
+                    
+                case 87: // W (mover Lugia hacia arriba)
+                    despY_Lugia += 0.1;
+                    despX_Textura_Lugia = despX_Textura_Lugia + 1 / 4; 
+                    despY_Textura_Lugia = 2 / 4; 
+                    break;
+                case 83: // S (mover Lugia hacia abajo)
+                    despY_Lugia -= 0.1;
+                    despX_Textura_Lugia = despX_Textura_Lugia + 1 / 4; 
+                    despY_Textura_Lugia = 1 / 4; 
+                    break;
+                case 68: // D (mover Lugia hacia la derecha)
+                    despX_Lugia += 0.1;
+                    despX_Textura_Lugia = despX_Textura_Lugia + 1 / 4; // Cambiar el cuadro de la textura
+                    despY_Textura_Lugia = 3 / 4; // Seleccionar la fila correspondiente en el spritesheet
+                    break;
+                case 65: // A (mover Lugia hacia la izquierda)
+                    despX_Lugia -= 0.1;
+                    despX_Textura_Lugia = despX_Textura_Lugia - 1 / 4; // Cambiar el cuadro de la textura
+                    despY_Textura_Lugia = 0; // Seleccionar la fila correspondiente en el spritesheet
+                    break;
+                case 27: // 'esc'
+                    window.close();
+                    break;
+            }
+
+            // Asegurarse de que las coordenadas de textura estén en el rango [0, 1]
+            if (despX_Textura >= 1) despX_Textura = 0;
+            if (despX_Textura < 0) despX_Textura = 1 - 1 / 4;
+        }
+
+        function keyUp(event) {
+            switch (event.keyCode) {
+                case 38: // Flecha arriba
+                case 40: // Flecha abajo
+                    velocidadY = 0; // Detener el movimiento vertical
+                    break;
+                case 39: // Flecha derecha
+                case 37: // Flecha izquierda
+                    velocidadX = 0; // Detener el movimiento horizontal
+                    break;
+            }
+        }
+
+        function dibuja() {
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            // Fondo
+            gl.activeTexture(gl.TEXTURE0);
+            gl.uniform1i(uUnidadDeTextura, 0);
+
+            identidad(MatrizTextura);
+            traslacion(MatrizTextura, despX_Textura_Fondo, 0, 0); // Desplazamiento en el eje X
+            gl.uniformMatrix4fv(uMatrizTextura, false, MatrizTextura);
+
+            identidad(MatrizModelo);
+            gl.uniformMatrix4fv(uMatrizModelo, false, MatrizModelo);
+
+            gl.bindTexture(gl.TEXTURE_2D, codigo1);
+            textura1.muestra(gl);
+
+            // Nubes
+            identidad(MatrizTextura);
+            traslacion(MatrizTextura, despX_Textura_Nubes, 0, 0); // Desplazamiento en el eje X
+            gl.uniformMatrix4fv(uMatrizTextura, false, MatrizTextura);
+
+            identidad(MatrizModelo);
+            gl.uniformMatrix4fv(uMatrizModelo, false, MatrizModelo);
+
+            gl.bindTexture(gl.TEXTURE_2D, codigoNubes);
+            texturaNubes.muestra(gl);
+
+            // Renderizar el ciclista
+            identidad(MatrizTextura);
+            traslacion(MatrizTextura, despX_Textura, despY_Textura, 0);
+            gl.uniformMatrix4fv(uMatrizTextura, false, MatrizTextura);
+
+            identidad(MatrizModelo);
+            traslacion(MatrizModelo, despX, despY, 0);
+            gl.uniformMatrix4fv(uMatrizModelo, false, MatrizModelo);
+
+            gl.bindTexture(gl.TEXTURE_2D, codigo2);
+            textura2.muestra(gl);
+
+            // Renderizar Lugia
+            identidad(MatrizTextura);
+            traslacion(MatrizTextura, despX_Textura_Lugia, despY_Textura_Lugia, 0);
+            gl.uniformMatrix4fv(uMatrizTextura, false, MatrizTextura);
+
+            identidad(MatrizModelo);
+            traslacion(MatrizModelo, despX_Lugia, despY_Lugia, 0);
+            gl.uniformMatrix4fv(uMatrizModelo, false, MatrizModelo);
+            
+
+            gl.bindTexture(gl.TEXTURE_2D, codigoLugia);
+            texturaLugia.muestra(gl);
+
+            // Actualizar el desplazamiento del fondo
+            despX_Textura_Fondo -= velocidad_Fondo; // Mover hacia la izquierda
+            if (despX_Textura_Fondo <= -1) {
+                despX_Textura_Fondo = 0; // Reiniciar el desplazamiento
+            }
+
+            // Actualizar el desplazamiento de las nubes
+            despX_Textura_Nubes += velocidad_Nubes; // Mover las nubes hacia la derecha
+            if (despX_Textura_Nubes >= 1) {
+                despX_Textura_Nubes = 0; // Reiniciar el desplazamiento
+            }
+
+            requestAnimationFrame(dibuja);
+        }
+
+        function main() {
+            canvas = document.getElementById("webglcanvas");
+            gl = canvas.getContext("webgl2");
+            if (!gl) {
+                document.write("WebGL 2.0 no está disponible en tu navegador");
+                return;
+            }
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+            document.addEventListener("keydown", keyDown, true);
+            document.addEventListener("keyup", keyUp, true);
+
+            compilaEnlazaLosShaders();
+
+            /* Se crean los objetos */
+            textura1 = new Rectangulo(gl, -5 * canvas.width / canvas.height, -5, 5 * canvas.width / canvas.height, 5, 0, 0, 1, 1);
+            codigo1 = gl.createTexture();
+            leeLaTextura("fondo", codigo1);
+
+            textura2 = new Rectangulo(gl, -5, -5, -2.7, -2.7, 0, 0, 1 / 4, 1 / 4);
+            codigo2 = gl.createTexture();
+            leeLaTextura("ciclista", codigo2);
+
+            // Bajar la textura de las nubes
+            texturaNubes = new Rectangulo(gl, -5 * canvas.width / canvas.height, 3, 5 * canvas.width / canvas.height, 4.5, 0, 0, 1, 1);
+            codigoNubes = gl.createTexture();
+            leeLaTextura("nube_1", codigoNubes);
+
+            // Crear la textura de Lugia
+            texturaLugia = new Rectangulo(gl, -3, -3, 1, 1, 2/4, 2/4, 3/4, 3/4);
+            codigoLugia = gl.createTexture();
+            leeLaTextura("lugia", codigoLugia);
+
+            gl.useProgram(programaID);
+            uMatrizProyeccion = gl.getUniformLocation(programaID, "uMatrizProyeccion");
+            uMatrizVista = gl.getUniformLocation(programaID, "uMatrizVista");
+            uMatrizModelo = gl.getUniformLocation(programaID, "uMatrizModelo");
+            uUnidadDeTextura = gl.getUniformLocation(programaID, "uUnidadDeTextura");
+            uMatrizTextura = gl.getUniformLocation(programaID, "uMatrizTextura");
+
+            ortho(MatrizProyeccion, -5 * canvas.width / canvas.height, 5 * canvas.width / canvas.height, -5, 5, -5, 5);
+            gl.uniformMatrix4fv(uMatrizProyeccion, false, MatrizProyeccion);
+            identidad(MatrizVista);
+            gl.uniformMatrix4fv(uMatrizVista, false, MatrizVista);
+
+            /* Para renderizar objetos transparentes (se considera el valor alfa) */
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+            gl.clearColor(176 / 255, 196 / 255, 222 / 256, 1);
+            dibuja();
+        }
+
+        window.onload = main;
+
+      </script>
+   </body>
+</html>
