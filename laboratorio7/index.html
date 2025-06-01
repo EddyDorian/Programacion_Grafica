@@ -2288,16 +2288,6 @@
         img.src = URL.createObjectURL(file);
       });
 
-      // document.getElementById("mtlFile").addEventListener("change", function (e) {
-      //   const file = e.target.files[0];
-      //   if (!file) return;
-      //   const reader = new FileReader();
-      //   reader.onload = function (evt) {
-      //     mtlMaterials = parseMTL(evt.target.result);
-      //   };
-      //   reader.readAsText(file);
-      // });
-
       document.getElementsByName("materialType").forEach(radio => {
         radio.addEventListener("change", function () {
           usarTextura = this.value === "texture";
@@ -2326,14 +2316,8 @@
       canvas.width = parent.clientWidth;
       canvas.height = parent.clientHeight;
 
-      // Si ya tienes el contexto WebGL, ajusta el viewport y la proyección
       if (window.gl) {
         gl.viewport(0, 0, canvas.width, canvas.height);
-        // Si usas ortho, puedes recalcular aquí si quieres que se adapte al aspecto
-        // Por ejemplo:
-        // let aspect = canvas.width / canvas.height;
-        // ortho(MatrizProyeccion, -5*aspect, 5*aspect, -5, 5, -5, 5);
-        // gl.uniformMatrix4fv(uMatrizProyeccion, false, MatrizProyeccion);
       }
 
       if (window.arcBall) {
